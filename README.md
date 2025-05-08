@@ -6,18 +6,31 @@
 
 ![image](https://github.com/user-attachments/assets/28e3484f-4482-42e6-b1d1-c799f5d656f0)
 
-Dosya indirilir:
-cd .\backend\ 
-ile backend dizinine geçtik
-npm i
-ile gerekli dosyalar indirilir
-npm run dev
-ile backend çalıştırılır
+# Proje Kurulum Rehberi
 
-farklı bir terminal aç
-cd .\frontend\
-npm i
-ile gerekli dosyalar indirilir
-ile frontend dizinine geçtik farklı bir terminalde
-npm start ile
-ile frontend çalıştırılır
+Bu rehber, backend ve frontend projelerinin kurulumu ve çalıştırılması için adımları içermektedir.
+
+## Kurulum Adımları
+
+1. **Terminal açılır ve Backend Dizini'ne Geçiş:**
+   - `cd ./backend`
+
+2. **Gerekli Dosyaların Yüklenmesi:**
+   - `npm install`
+
+3. **Backend'i Çalıştırma:**
+   - `npm run dev`
+
+4. **Yeni Bir Terminal Açın ve Frontend Dizini'ne Geçiş:**
+   - `cd ./frontend`
+
+5. **Gerekli Dosyaların Yüklenmesi:**
+   - `npm install`
+
+6. **Frontend'i Çalıştırma:**
+   - `npm start`
+
+## Notlar
+
+- Backend ve frontend projelerini farklı terminal pencerelerinde çalıştırmalısınız.
+- Her iki projede de `npm install` komutunu çalıştırmayı unutmayın. Yoksa gerekli dosyaları indirmez.
