@@ -115,71 +115,82 @@ const VendorDashboard = () => {
         <Col md={8}>
           <Card className="shadow-sm">
             <Card.Body>
-              <Tab.Container id="vendor-dashboard-tabs" defaultActiveKey="menu">
-                <Nav variant="tabs" className="mb-3">
-                  <Nav.Item>
-                    <Nav.Link eventKey="menu">Menü Yönetimi</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="availability">Müsaitlik Ayarları</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="orders">Siparişler</Nav.Link>
-                  </Nav.Item>
-                </Nav>
-                
-                <Tab.Content>
-                  <Tab.Pane eventKey="menu">
-                    <div className="text-end mb-3">
-                      <Button 
-                        variant="success"
-                        onClick={() => navigate('/vendor/menu/add')}
-                        disabled={!vendorProfile}
-                      >
-                        Yeni Menü Öğesi Ekle
-                      </Button>
-                    </div>
-                    
-                    {!vendorProfile ? (
-                      <Alert variant="warning">
-                        Menü öğesi eklemek için önce işletme profili oluşturmalısınız.
-                      </Alert>
-                    ) : (
-                      <div className="text-center">
+              <div className="d-flex justify-content-between align-items-center mb-4">
+                <h4 className="mb-0">Yönetim Seçenekleri</h4>
+                {vendorProfile && (
+                  <Button 
+                    variant="success"
+                    onClick={() => navigate('/vendor/menu/add')}
+                  >
+                    Yeni Menü Öğesi Ekle
+                  </Button>
+                )}
+              </div>
+              
+              {!vendorProfile ? (
+                <Alert variant="warning">
+                  Menü ve müsaitlik ayarları için önce işletme profili oluşturmalısınız.
+                </Alert>
+              ) : (
+                <Row className="g-3">
+                  <Col md={4}>
+                    <Card className="h-100 text-center">
+                      <Card.Body className="d-flex flex-column justify-content-between">
+                        <div>
+                          <i className="bi bi-list-ul fs-1 text-primary mb-3"></i>
+                          <h5>Menü Yönetimi</h5>
+                          <p className="text-muted">Menülerinizi düzenleyin, yeni öğeler ekleyin</p>
+                        </div>
                         <Button 
                           variant="outline-primary"
                           onClick={() => navigate('/vendor/menu')}
+                          className="w-100"
                         >
                           Menü Yönetimine Git
                         </Button>
-                      </div>
-                    )}
-                  </Tab.Pane>
+                      </Card.Body>
+                    </Card>
+                  </Col>
                   
-                  <Tab.Pane eventKey="availability">
-                    {!vendorProfile ? (
-                      <Alert variant="warning">
-                        Müsaitlik ayarlarını düzenlemek için önce işletme profili oluşturmalısınız.
-                      </Alert>
-                    ) : (
-                      <div className="text-center">
+                  <Col md={4}>
+                    <Card className="h-100 text-center">
+                      <Card.Body className="d-flex flex-column justify-content-between">
+                        <div>
+                          <i className="bi bi-calendar-check fs-1 text-success mb-3"></i>
+                          <h5>Müsaitlik Ayarları</h5>
+                          <p className="text-muted">Çalışma saatlerinizi ve rezervasyon ayarlarını düzenleyin</p>
+                        </div>
                         <Button 
-                          variant="outline-primary"
+                          variant="outline-success"
                           onClick={() => navigate('/vendor/availability')}
+                          className="w-100"
                         >
                           Müsaitlik Ayarlarına Git
                         </Button>
-                      </div>
-                    )}
-                  </Tab.Pane>
+                      </Card.Body>
+                    </Card>
+                  </Col>
                   
-                  <Tab.Pane eventKey="orders">
-                    <Alert variant="info">
-                      Sipariş yönetimi yakında eklenecektir.
-                    </Alert>
-                  </Tab.Pane>
-                </Tab.Content>
-              </Tab.Container>
+                  <Col md={4}>
+                    <Card className="h-100 text-center">
+                      <Card.Body className="d-flex flex-column justify-content-between">
+                        <div>
+                          <i className="bi bi-clipboard-check fs-1 text-warning mb-3"></i>
+                          <h5>Siparişler</h5>
+                          <p className="text-muted">Rezervasyon isteklerini ve siparişleri görüntüleyin</p>
+                        </div>
+                        <Button 
+                          variant="outline-warning"
+                          disabled
+                          className="w-100"
+                        >
+                          Yakında Eklenecek
+                        </Button>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+              )}
             </Card.Body>
           </Card>
         </Col>

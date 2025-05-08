@@ -1,0 +1,108 @@
+.success-modal-body {
+  text-align: center;
+  padding: 20px;
+}
+
+.order-id {
+  font-weight: bold;
+  color: #28a745;
+  font-size: 1.2rem;
+  margin: 15px 0;
+}
+
+.success-message {
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+}
+
+.success-modal .modal-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.success-modal .modal-footer {
+  justify-content: center;
+  border-top: 1px solid #dee2e6;
+  padding: 15px;
+}
+
+.view-orders-btn {
+  width: 80%;
+  padding: 10px;
+}
+
+/* Butonlar için stil */
+.cart-item-quantity .btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.payment-method-option {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  transition: all 0.3s ease;
+}
+
+.payment-method-option:hover {
+  border-color: #80bdff;
+  background-color: #f0f7ff;
+}
+
+.payment-method-option .form-check-input:checked ~ .form-check-label {
+  font-weight: 500;
+}
+
+.payment-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Formlar için stil */
+.form-control:focus {
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+}
+
+.bg-light {
+  background-color: #f8f9fa !important;
+}
+
+/* Sepet öğeleri için stil */
+.cart-item-image {
+  width: 80px;
+  height: 80px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cart-item-details {
+  min-width: 0;
+}
+
+/* Boş sepet için stil */
+.empty-cart-container {
+  padding: 50px 0;
+  text-align: center;
+}
+
+/* Sipariş özeti için stil */
+.order-summary {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+/* Sipariş başarılı animasyonu */
+.success-checkmark {
+  margin: 0 auto 20px;
+} 

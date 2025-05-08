@@ -1,0 +1,36 @@
+.profile-card {
+  transition: transform 0.3s;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.profile-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.profile-input {
+  padding: 12px;
+  border-radius: 6px;
+  transition: all 0.3s;
+}
+
+.profile-input:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.profile-button {
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.profile-button:hover:not(:disabled) {
+  background-color: #0b5ed7;
+  transform: translateY(-2px);
+}
+
+.profile-button:active:not(:disabled) {
+  transform: translateY(0);
+} 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Button, Container, Row, Col, Card, Alert } from 'react-bootstrap';
+import { Form, Button, Container, Row, Col, Card, Alert, Image } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -8,64 +8,101 @@ const VendorAddMenuItem = () => {
     name: '',
     description: '',
     price: '',
-    category: 'Ana Yemek',
+    category: 'Ana Yemekler',
     isAvailable: true,
     isVegetarian: false,
     isVegan: false,
     isGlutenFree: false,
     spicyLevel: 0,
     ingredients: '',
-    allergens: ''
+    allergens: '',
+    image: ''
   });
   
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   
   const navigate = useNavigate();
   
   // Kategori seçenekleri
   const categoryOptions = [
-    'Ana Yemek',
-    'Çorba',
-    'Salata',
-    'Tatlı',
-    'İçecek',
-    'Aperatif',
+    'Başlangıçlar',
+    'Ana Yemekler',
+    'Tatlılar',
+    'İçecekler',
     'Kahvaltı',
-    'Özel Menü'
+    'Sandviçler',
+    'Salatalar',
+    'Çorbalar',
+    'Mezeler',
+    'Fast Food',
+    'Özel Menüler',
+    'Diğer'
   ];
   
   useEffect(() => {
     // localStorage'dan kullanıcı bilgilerini al
     const storedUserInfo = localStorage.getItem('userInfo');
     if (!storedUserInfo) {
+      console.log('Kullanıcı bilgisi bulunamadı, giriş sayfasına yönlendiriliyor');
       navigate('/login');
       return;
     }
     
     const userInfo = JSON.parse(storedUserInfo);
+    console.log('Kullanıcı bilgileri:', userInfo);
     
     // Kullanıcı satıcı değilse ana sayfaya yönlendir
     if (userInfo.role !== 'vendor') {
+      console.log('Kullanıcı satıcı değil, ana sayfaya yönlendiriliyor');
       navigate('/');
       return;
     }
     
+    // Backend sağlık kontrolü
+    const checkBackendHealth = async () => {
+      try {
+        console.log('Backend sağlık kontrolü yapılıyor...');
+        await axios.get('http://localhost:5000/api/vendors');
+        console.log('Backend aktif ve çalışıyor');
+      } catch (error) {
+        console.error('Backend bağlantı hatası:', error);
+        setError('Sunucu ile bağlantı kurulamadı. Lütfen daha sonra tekrar deneyin.');
+        return false;
+      }
+      return true;
+    };
+    
     // Satıcı profilinin olup olmadığını kontrol et
     const checkVendorProfile = async () => {
+      const backendOk = await checkBackendHealth();
+      if (!backendOk) return;
+      
       try {
         const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('Token bulunamadı');
+          navigate('/login');
+          return;
+        }
+        
+        console.log('Satıcı profili kontrol ediliyor...');
         const config = {
           headers: {
             Authorization: `Bearer ${token}`
           }
         };
         
-        await axios.get('http://localhost:5000/api/vendors/profile', config);
+        const response = await axios.get('http://localhost:5000/api/vendors/profile', config);
+        console.log('Satıcı profili bulundu:', response.data);
       } catch (error) {
+        console.error('Profil kontrolünde hata:', error.response || error);
         // Profil bulunamadı, profil oluşturma sayfasına yönlendir
         if (error.response && error.response.status === 404) {
+          console.log('Satıcı profili bulunamadı, profil oluşturma sayfasına yönlendiriliyor');
           navigate('/vendor/profile/create');
         } else {
           setError('Bir hata oluştu: ' + (error.response?.data?.message || 'Bilinmeyen hata'));
@@ -83,26 +120,70 @@ const VendorAddMenuItem = () => {
       [name]: type === 'checkbox' ? checked : value
     });
   };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
     
-    // Fiyatı doğru formata çevirme
-    const price = parseFloat(formData.price);
-    if (isNaN(price) || price <= 0) {
-      setError('Lütfen geçerli bir fiyat girin');
+    if (!file) return;
+    
+    // Dosya boyutu kontrolü (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Resim dosyası en fazla 5MB büyüklüğünde olabilir');
       return;
     }
     
-    // İçerik ve alerjenler dizilere dönüştürme
-    const ingredients = formData.ingredients.split(',').map(item => item.trim()).filter(item => item);
-    const allergens = formData.allergens.split(',').map(item => item.trim()).filter(item => item);
+    // Desteklenen formatlar
+    const validFormats = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    if (!validFormats.includes(file.type)) {
+      setError('Lütfen JPEG, PNG veya WebP formatında bir resim yükleyin');
+      return;
+    }
+    
+    setUploadingImage(true);
+    
+    // Dosyayı Base64 formatına dönüştür
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+      setFormData({
+        ...formData,
+        image: reader.result
+      });
+      setUploadingImage(false);
+    };
+    
+    reader.onerror = () => {
+      setError('Resim dosyası okunamadı, lütfen tekrar deneyin');
+      setUploadingImage(false);
+    };
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     
     try {
       setLoading(true);
       setError('');
       
+      // Fiyatı doğru formata çevirme
+      const price = parseFloat(formData.price);
+      if (isNaN(price) || price <= 0) {
+        throw new Error('Lütfen geçerli bir fiyat girin');
+      }
+      
+      // İçerik ve alerjenler dizilere dönüştürme
+      const ingredients = formData.ingredients.split(',').map(item => item.trim()).filter(item => item);
+      const allergens = formData.allergens.split(',').map(item => item.trim()).filter(item => item);
+      
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.');
+      }
+      
+      console.log('Kullanılan token:', token);
+      
       const config = {
         headers: {
           'Content-Type': 'application/json',
@@ -110,19 +191,33 @@ const VendorAddMenuItem = () => {
         }
       };
       
+      // Resmi kontrol et
+      let imageData = formData.image;
+      if (!imageData) {
+        imageData = 'default-food.jpg'; // Default resim
+      }
+      
       const menuItemData = {
         ...formData,
         price,
         ingredients,
         allergens,
-        spicyLevel: parseInt(formData.spicyLevel)
+        spicyLevel: parseInt(formData.spicyLevel),
+        image: imageData
       };
+      
+      console.log('Gönderilen menü verisi:', {
+        ...menuItemData,
+        image: menuItemData.image ? 'Base64 resim verisi (gizlendi)' : 'default-food.jpg'
+      });
       
       const { data } = await axios.post(
         'http://localhost:5000/api/vendors/menu',
         menuItemData,
         config
       );
+      
+      console.log('API yanıtı:', data);
       
       if (data.success) {
         setSuccess(true);
@@ -133,11 +228,21 @@ const VendorAddMenuItem = () => {
         }, 2000);
       }
     } catch (error) {
-      setError(
-        error.response && error.response.data.message
-          ? error.response.data.message
-          : 'Menü öğesi eklenirken bir hata oluştu'
-      );
+      console.error('Hata detayları:', error);
+      
+      if (error.response) {
+        // Sunucu yanıtıyla dönen hata
+        console.error('Sunucu yanıt hatası:', error.response.data);
+        setError(error.response.data.message || 'Sunucu hatası: ' + error.response.status);
+      } else if (error.request) {
+        // İstek yapıldı ama yanıt alınamadı
+        console.error('Yanıt alınamadı:', error.request);
+        setError('Sunucuya ulaşılamıyor. İnternet bağlantınızı kontrol edin.');
+      } else {
+        // İstek oluşturulurken hata
+        console.error('İstek hatası:', error.message);
+        setError(error.message || 'Bilinmeyen hata');
+      }
     } finally {
       setLoading(false);
     }
@@ -159,8 +264,35 @@ const VendorAddMenuItem = () => {
                 </Button>
               </div>
               
-              {error && <Alert variant="danger">{error}</Alert>}
-              {success && <Alert variant="success">Menü öğesi başarıyla eklendi! Yönlendiriliyorsunuz...</Alert>}
+              {error && (
+                <Alert 
+                  variant="danger" 
+                  className="p-3 mb-4"
+                >
+                  <strong>Hata:</strong> {error}
+                </Alert>
+              )}
+              {success && (
+                <Alert 
+                  variant="success" 
+                  className="p-3 mb-4"
+                >
+                  Menü öğesi başarıyla eklendi! Yönlendiriliyorsunuz...
+                </Alert>
+              )}
+              {loading && (
+                <Alert 
+                  variant="info" 
+                  className="p-3 mb-4"
+                >
+                  <div className="d-flex align-items-center">
+                    <div className="spinner-border spinner-border-sm me-2" role="status">
+                      <span className="visually-hidden">Yükleniyor...</span>
+                    </div>
+                    İşleminiz gerçekleştiriliyor...
+                  </div>
+                </Alert>
+              )}
               
               <Form onSubmit={handleSubmit}>
                 <Form.Group className="mb-3" controlId="name">
@@ -186,6 +318,48 @@ const VendorAddMenuItem = () => {
                     placeholder="Ürün açıklamasını girin"
                     required
                   />
+                </Form.Group>
+                
+                <Form.Group className="mb-4" controlId="image">
+                  <Form.Label>Ürün Resmi</Form.Label>
+                  <div className="mb-3">
+                    {imagePreview ? (
+                      <div className="text-center mb-3">
+                        <Image 
+                          src={imagePreview} 
+                          style={{ maxHeight: '200px', maxWidth: '100%' }} 
+                          thumbnail 
+                          fluid
+                        />
+                      </div>
+                    ) : (
+                      <div 
+                        className="text-center p-4 mb-3 border rounded"
+                        style={{ backgroundColor: '#f8f9fa' }}
+                      >
+                        <i className="bi bi-image fs-1 text-secondary"></i>
+                        <p className="mt-2 text-muted">Resim önizlemesi burada görünecek</p>
+                      </div>
+                    )}
+                    
+                    <Form.Control
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp"
+                      onChange={handleImageChange}
+                    />
+                    <Form.Text className="text-muted">
+                      JPEG, PNG veya WebP formatında bir resim yükleyin (maks. 5MB)
+                    </Form.Text>
+                  </div>
+                  
+                  {uploadingImage && (
+                    <div className="d-flex align-items-center mt-2">
+                      <div className="spinner-border spinner-border-sm me-2" role="status">
+                        <span className="visually-hidden">Yükleniyor...</span>
+                      </div>
+                      <span>Resim işleniyor...</span>
+                    </div>
+                  )}
                 </Form.Group>
                 
                 <Row>
@@ -305,10 +479,11 @@ const VendorAddMenuItem = () => {
                 </Row>
                 
                 <div className="d-grid gap-2 mt-4">
-                  <Button 
-                    variant="success" 
+                  <Button
+                    variant="primary"
                     type="submit"
-                    disabled={loading || success}
+                    className="w-100 py-2 mt-3"
+                    disabled={loading || uploadingImage}
                   >
                     {loading ? 'Ekleniyor...' : 'Menü Öğesi Ekle'}
                   </Button>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Form, Button, Container, Row, Col, Card, Alert } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 const LoginPage = () => {
@@ -10,6 +10,10 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Kullanıcının nereden geldiğini ve nereye yönlendirileceğini kontrol et
+  const redirectTo = location.state?.redirectTo || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +34,7 @@ const LoginPage = () => {
       });
       
       // API'den dönen kullanıcı verilerini al
-      let userData = response.data;
+      let userData = response.data.data;
       console.log('Login response RAW:', JSON.stringify(userData));
 
       // Rol bilgisini MongoDB'deki ile eşleştirmek için doğrudan atama yap
@@ -44,50 +48,64 @@ const LoginPage = () => {
       // ve rol bilgisinin doğru şekilde işlendiğinden emin ol
       userData = {
         ...userData,
-        name: userData.name || email.split('@')[0], // Email'den isim oluştur
-        email: userData.email || email,
-        role: userData.role || 'user' // Role bilgisini koru
+        name: userData?.name || email.split('@')[0], // Email'den isim oluştur
+        email: userData?.email || email,
+        role: userData?.role || 'user', // Role bilgisini koru
+        token: userData?.token // Token bilgisini ekle
       };
       
       console.log('Processed user data:', JSON.stringify(userData));
       
-      // Kullanıcı bilgilerini localStorage'a kaydet
+      // Kullanıcı verilerini localStorage'a kaydet
       localStorage.setItem('userInfo', JSON.stringify(userData));
       localStorage.setItem('token', userData.token);
       
-      // Eğer vendor ise, profil bilgilerini de çek
-      if (userData.role === 'vendor') {
+      // Storage event'i tetikle (Header ve diğer bileşenler için)
+      window.dispatchEvent(new Event('storage'));
+      
+      // Bekleyen sepet öğesi kontrolü
+      const pendingCartItem = localStorage.getItem('pendingCartItem');
+      
+      if (pendingCartItem) {
         try {
+          const cartItem = JSON.parse(pendingCartItem);
+          // Sepete ekle
           const config = {
             headers: {
-              Authorization: `Bearer ${userData.token}`
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${userData.token}`
             }
           };
           
-          const vendorResponse = await axios.get('http://localhost:5000/api/vendors/profile', config);
-          console.log('Vendor profile response:', vendorResponse.data);
+          console.log('Login sonrası sepete ekleme isteği:', {
+            menuItemId: cartItem.menuItemId,
+            quantity: cartItem.quantity,
+            notes: cartItem.notes || cartItem.specialInstructions
+          });
           
-          if (vendorResponse.data.success) {
-            // Güncellenmiş kullanıcı bilgilerini localStorage'a kaydet
-            const updatedUserData = {
-              ...userData,
-              vendorProfile: vendorResponse.data.data
-            };
-            
-            localStorage.setItem('userInfo', JSON.stringify(updatedUserData));
-            console.log('Updated user info with vendor profile:', updatedUserData);
-          }
-        } catch (vendorError) {
-          console.log('Vendor profili bulunamadı, profil oluşturma gerekebilir');
-          // Hata oluşsa bile giriş başarılı olduğu için devam et
+          await axios.post(
+            'http://localhost:5000/api/cart',
+            {
+              menuItemId: cartItem.menuItemId,
+              quantity: cartItem.quantity,
+              notes: cartItem.notes || cartItem.specialInstructions
+            },
+            config
+          );
+          
+          // Sepete ekleme başarılı olduktan sonra pendingCartItem'ı temizle
+          localStorage.removeItem('pendingCartItem');
+          
+          // Sepet sayfasına yönlendir
+          navigate('/cart');
+          return;
+        } catch (error) {
+          console.error('Bekleyen sepet öğesi eklenemedi:', error);
         }
       }
       
-      // Tarayıcı olayını tetikle (Header ve diğer bileşenler için)
-      window.dispatchEvent(new Event('storage'));
-      
-      // Kullanıcı giriş yaptıktan sonra ana sayfaya yönlendir
-      navigate('/');
+      // Yönlendirme yap
+      navigate(redirectTo);
     } catch (error) {
       console.error('Login error:', error);
       setError(

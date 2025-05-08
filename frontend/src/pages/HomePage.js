@@ -1,261 +1,376 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert } from 'react-bootstrap';
-import { useNavigate, Link } from 'react-router-dom';
+import { Container, Row, Col, Card, Button, Spinner, Alert } from 'react-bootstrap';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const HomePage = () => {
   const [userInfo, setUserInfo] = useState(null);
+  const [vendors, setVendors] = useState([]);
+  const [pendingOrders, setPendingOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        // localStorage'dan kullanıcı bilgilerini al
-        const storedUserInfo = localStorage.getItem('userInfo');
-        if (!storedUserInfo) {
-          // Kullanıcı giriş yapmamışsa login sayfasına yönlendir
-          navigate('/login');
-          return;
-        }
-
-        try {
-          const parsedUserInfo = JSON.parse(storedUserInfo);
-          console.log('HomePage loaded user info:', parsedUserInfo);
-          
-          // Eksik alan kontrolü ve rol alanının doğruluğundan emin olma
-          let updatedUserInfo = {
-            ...parsedUserInfo,
-            name: parsedUserInfo.name || parsedUserInfo.email?.split('@')[0] || 'Kullanıcı',
-            email: parsedUserInfo.email || '',
-            role: parsedUserInfo.role || 'user'
-          };
-          
-          // Ayşe Teyze için özel rol düzeltmesi
-          if (updatedUserInfo.email?.toLowerCase() === 'ayseteyze@test.com') {
-            console.log('Ana sayfada Ayşe Teyze kullanıcısı için rol düzeltiliyor -> vendor');
-            updatedUserInfo.role = 'vendor';
-            localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
-          }
-          
-          // Eğer bilgilerde eksik varsa localStorage'ı güncelle
-          if (updatedUserInfo.name !== parsedUserInfo.name || 
-              updatedUserInfo.email !== parsedUserInfo.email ||
-              updatedUserInfo.role !== parsedUserInfo.role) {
-            localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
-            console.log('Updated user info in HomePage:', updatedUserInfo);
-          }
-          
-          setUserInfo(updatedUserInfo);
-
-          // Token varsa kullanıcı bilgilerini API'den doğrula
-          const token = localStorage.getItem('token');
-          if (token) {
-            const config = {
-              headers: {
-                Authorization: `Bearer ${token}`
-              }
-            };
-            
-            try {
-              // Kullanıcı bilgilerini doğrulamak için profil isteği gönder
-              const profileResponse = await axios.get('http://localhost:5000/api/auth/profile', config);
-              console.log('Profile response:', profileResponse.data);
-              
-              // Kullanıcı rolünü backendden gelen ile senkronize et
-              if (profileResponse.data && profileResponse.data.role) {
-                // Eğer rol değişmişse güncelle
-                if (updatedUserInfo.role !== profileResponse.data.role) {
-                  console.log('Role mismatch! Local:', updatedUserInfo.role, 'Server:', profileResponse.data.role);
-                  updatedUserInfo.role = profileResponse.data.role;
-                  localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
-                  setUserInfo(updatedUserInfo);
-                }
-              }
   
-              // Kullanıcı rolüne göre ek bilgileri getir
-              if (updatedUserInfo.role === 'vendor') {
-                try {
-                  const vendorResponse = await axios.get('http://localhost:5000/api/vendors/profile', config);
-                  console.log('Vendor profile response:', vendorResponse.data);
-                  
-                  if (vendorResponse.data.success) {
-                    // Backend'den gelen güncel kullanıcı bilgileri ile localStorage'ı güncelle
-                    const vendorUpdatedUserInfo = {
-                      ...updatedUserInfo,
-                      vendorProfile: vendorResponse.data.data
-                    };
-                    localStorage.setItem('userInfo', JSON.stringify(vendorUpdatedUserInfo));
-                    setUserInfo(vendorUpdatedUserInfo);
-                  }
-                } catch (err) {
-                  console.log('Vendor profili getirilemedi:', err);
-                }
-              }
-            } catch (profileErr) {
-              console.error('Profil bilgileri getirilemedi:', profileErr);
-            }
-          }
-        } catch (parseError) {
-          console.error('Error parsing user info from localStorage', parseError);
-          localStorage.removeItem('userInfo');
-          navigate('/login');
-          return;
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    // localStorage'dan kullanıcı bilgilerini al
+    const storedUserInfo = localStorage.getItem('userInfo');
+    
+    if (storedUserInfo) {
+      try {
+        const parsedUserInfo = JSON.parse(storedUserInfo);
+        setUserInfo(parsedUserInfo);
+        
+        // Kullanıcı tipine göre ilgili verileri yükle
+        if (parsedUserInfo.role === 'vendor') {
+          fetchVendorPendingOrders();
+        } else {
+          fetchVendors();
         }
       } catch (error) {
-        setError('Kullanıcı bilgileri yüklenirken bir hata oluştu');
-      } finally {
-        setLoading(false);
+        console.error('Kullanıcı bilgisi parse hatası:', error);
+        fetchVendors(); // Hata durumunda default olarak restoranları getir
       }
-    };
-
-    fetchUserInfo();
-  }, [navigate]);
-
-  const handleLogout = () => {
-    // Kullanıcı bilgilerini localStorage'dan temizle
-    localStorage.removeItem('userInfo');
-    localStorage.removeItem('token');
-    setUserInfo(null);
-    navigate('/login');
+    } else {
+      fetchVendors(); // Kullanıcı giriş yapmamışsa restoranları getir
+    }
+  }, []);
+  
+  // Restoranları getir
+  const fetchVendors = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('http://localhost:5000/api/vendors');
+      
+      if (response.data.success) {
+        setVendors(response.data.data);
+      }
+    } catch (error) {
+      console.error('Restoran verisi getirme hatası:', error);
+      setError('Restoranlar yüklenirken bir hata oluştu.');
+    } finally {
+      setLoading(false);
+    }
   };
-
+  
+  // Satıcının bekleyen siparişlerini getir
+  const fetchVendorPendingOrders = async () => {
+    try {
+      setLoading(true);
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+      
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      };
+      
+      const response = await axios.get('http://localhost:5000/api/orders/vendor', config);
+      
+      if (response.data.success) {
+        // Sadece bekleyen ve hazırlanıyor durumundaki siparişleri filtrele
+        const pendingOrders = response.data.data.filter(
+          order => order.status === 'pending' || order.status === 'preparing'
+        );
+        setPendingOrders(pendingOrders);
+      }
+    } catch (error) {
+      console.error('Sipariş verisi getirme hatası:', error);
+      setError('Siparişler yüklenirken bir hata oluştu.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Yükleme durumu
   if (loading) {
     return (
       <Container className="py-5 text-center">
-        <Alert variant="info">
-          Yükleniyor...
-        </Alert>
+        <Spinner animation="border" />
+        <p>Yükleniyor...</p>
       </Container>
     );
   }
-
-  if (error) {
+  
+  // Kullanıcı Anasayfası
+  const renderUserHomePage = () => {
     return (
-      <Container className="py-5 text-center">
-        <Alert variant="danger">
-          {error}
-        </Alert>
-      </Container>
-    );
-  }
-
-  if (!userInfo) {
-    return (
-      <Container className="py-5 text-center">
-        <Alert variant="warning">
-          Oturum bilgileriniz bulunamadı. Lütfen tekrar giriş yapın.
-        </Alert>
-        <Button 
-          variant="primary"
-          onClick={() => navigate('/login')}
-          className="mt-3"
-        >
-          Giriş Sayfasına Git
-        </Button>
-      </Container>
-    );
-  }
-
-  // Kullanıcı rolüne göre görüntülenecek içeriği belirle
-  const getRoleDisplay = (role) => {
-    console.log('Displaying role:', role, 'Type:', typeof role);
-    
-    // Eğer role string değilse veya boş ise
-    if (!role) {
-      return 'Kullanıcı';
-    }
-    
-    // Rol değerini kontrol et - küçük/büyük harf duyarlılığını kaldırarak
-    const roleLowerCase = String(role).toLowerCase().trim();
-    console.log('Normalized role:', roleLowerCase);
-    
-    switch (roleLowerCase) {
-      case 'admin':
-        return 'Yönetici';
-      case 'vendor':
-        return 'Restoran Sahibi';
-      case 'user':
-        return 'Kullanıcı';
-      default:
-        console.log('Unknown role type:', roleLowerCase);
-        return 'Kullanıcı'; // Beklenmeyen değerler için default
-    }
-  };
-
-  return (
-    <Container className="py-5">
-      <Row className="mb-4">
-        <Col>
-          <h1>Hoş Geldiniz, {userInfo.name || userInfo.email?.split('@')[0] || 'Kullanıcı'}!</h1>
-          <p>Yemek Rezervasyon Uygulamasına başarıyla giriş yaptınız.</p>
-        </Col>
-      </Row>
-
-      <Row className="mb-4">
-        <Col md={4} className="mb-3">
-          <Card className="h-100 shadow-sm">
-            <Card.Body>
-              <Card.Title>Kullanıcı Bilgileri</Card.Title>
-              <hr />
-              <p><strong>Ad Soyad:</strong> {userInfo.name || userInfo.email?.split('@')[0] || 'Belirtilmemiş'}</p>
-              <p><strong>E-posta:</strong> {userInfo.email || 'Belirtilmemiş'}</p>
-              <p><strong>Rol:</strong> {getRoleDisplay(userInfo.role)}</p>
-            </Card.Body>
-          </Card>
-        </Col>
-
-        <Col md={8}>
-          <Card className="shadow-sm">
-            <Card.Body>
-              <Card.Title>Kontrol Paneli</Card.Title>
-              <hr />
-              
-              {userInfo.role === 'vendor' ? (
-                <>
-                  <p>
-                    <strong>Restoran Sahibi</strong> olarak aşağıdaki işlemleri yapabilirsiniz:
-                  </p>
-                  <div className="d-grid gap-2 mb-4">
-                    <Link to="/vendor/dashboard">
-                      <Button variant="primary" className="w-100 mb-2">
-                        Satıcı Kontrol Paneli
-                      </Button>
-                    </Link>
-                    <Link to="/vendor/menu">
-                      <Button variant="outline-primary" className="w-100 mb-2">
-                        Menü Yönetimi
-                      </Button>
-                    </Link>
-                    <Link to="/vendor/availability">
-                      <Button variant="outline-primary" className="w-100">
-                        Müsaitlik Ayarları
-                      </Button>
-                    </Link>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p>Bu uygulama şu anda minimalist bir yapıda olup, sadece kullanıcı girişi ve kayıt özellikleri içermektedir.</p>
-                  <p>Uygulamanın tam sürümü geliştirilme aşamasındadır.</p>
-                </>
-              )}
-              
-              <div className="mt-4">
+      <>
+        <section className="hero-section py-5 bg-light mb-4">
+          <Container>
+            <Row className="align-items-center">
+              <Col md={6}>
+                <h1 className="display-4 mb-3">Sevdiğiniz Yemekler Kapınızda</h1>
+                <p className="lead mb-4">
+                  En sevdiğiniz restoranlardan lezzetli yemekleri sipariş edin ve kapınıza kadar getirtelim.
+                </p>
                 <Button 
-                  variant="danger"
-                  onClick={handleLogout}
-                  className="me-2"
+                  variant="primary" 
+                  size="lg" 
+                  as={Link} 
+                  to="/vendors"
+                  className="px-4"
                 >
-                  Çıkış Yap
+                  Restoranlara Göz At
+                </Button>
+              </Col>
+              <Col md={6} className="text-center">
+                <img 
+                  src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60" 
+                  alt="Lezzetli Yemekler" 
+                  className="img-fluid rounded shadow-sm"
+                />
+              </Col>
+            </Row>
+          </Container>
+        </section>
+        
+        <section className="featured-restaurants py-4">
+          <Container>
+            <h2 className="mb-4">Öne Çıkan Restoranlar</h2>
+            {error && <Alert variant="danger">{error}</Alert>}
+            
+            {vendors.length === 0 ? (
+              <Alert variant="info">
+                Henüz listelenecek restoran bulunmamaktadır.
+              </Alert>
+            ) : (
+              <Row>
+                {vendors.slice(0, 4).map((vendor) => (
+                  <Col key={vendor._id} md={6} lg={3} className="mb-4">
+                    <Card className="h-100 shadow-sm border-0">
+                      <Card.Img 
+                        variant="top" 
+                        src={vendor.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(vendor.businessName)}&background=random&color=fff&size=250`} 
+                        height="180"
+                        style={{ objectFit: 'cover' }}
+                      />
+                      <Card.Body className="d-flex flex-column">
+                        <Card.Title>{vendor.businessName}</Card.Title>
+                        <Card.Text className="text-muted small">
+                          {vendor.cuisine}
+                        </Card.Text>
+                        <Card.Text className="mb-4 small">
+                          {vendor.description?.substring(0, 100)}
+                          {vendor.description?.length > 100 ? '...' : ''}
+                        </Card.Text>
+                        <Button 
+                          variant="outline-primary" 
+                          as={Link} 
+                          to={`/vendors/${vendor._id}`}
+                          className="mt-auto"
+                        >
+                          Menüyü Gör
+                        </Button>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            )}
+            
+            {vendors.length > 4 && (
+              <div className="text-center mt-4">
+                <Button 
+                  variant="secondary" 
+                  as={Link} 
+                  to="/vendors"
+                >
+                  Tümünü Gör
                 </Button>
               </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+            )}
+          </Container>
+        </section>
+      </>
+    );
+  };
+  
+  // Satıcı Anasayfası
+  const renderVendorHomePage = () => {
+    return (
+      <Container className="py-5">
+        <Row className="mb-4">
+          <Col>
+            <h2>Satıcı Kontrol Paneli</h2>
+            <p className="text-muted">
+              Hoş geldiniz, {userInfo?.name || userInfo?.email?.split('@')[0] || 'Satıcı'}!
+              Satıcı panelinize buradan erişebilirsiniz.
+            </p>
+          </Col>
+        </Row>
+        
+        <Row className="mb-4">
+          <Col md={6} lg={3} className="mb-3">
+            <Card className="text-center h-100 border-0 shadow-sm">
+              <Card.Body>
+                <div className="mb-3">
+                  <i className="bi bi-list-check text-primary" style={{ fontSize: '2rem' }}></i>
+                </div>
+                <Card.Title>Siparişler</Card.Title>
+                <Card.Text>
+                  Tüm siparişlerinizi görüntüleyin ve yönetin.
+                </Card.Text>
+                <Button 
+                  variant="primary" 
+                  as={Link} 
+                  to="/vendor/orders"
+                >
+                  Siparişlere Git
+                </Button>
+              </Card.Body>
+            </Card>
+          </Col>
+          
+          <Col md={6} lg={3} className="mb-3">
+            <Card className="text-center h-100 border-0 shadow-sm">
+              <Card.Body>
+                <div className="mb-3">
+                  <i className="bi bi-card-list text-success" style={{ fontSize: '2rem' }}></i>
+                </div>
+                <Card.Title>Menü</Card.Title>
+                <Card.Text>
+                  Menünüzü düzenleyin, yeni ürünler ekleyin veya çıkarın.
+                </Card.Text>
+                <Button 
+                  variant="success" 
+                  as={Link} 
+                  to="/vendor/menu"
+                >
+                  Menüye Git
+                </Button>
+              </Card.Body>
+            </Card>
+          </Col>
+          
+          <Col md={6} lg={3} className="mb-3">
+            <Card className="text-center h-100 border-0 shadow-sm">
+              <Card.Body>
+                <div className="mb-3">
+                  <i className="bi bi-calendar-check text-info" style={{ fontSize: '2rem' }}></i>
+                </div>
+                <Card.Title>Çalışma Saatleri</Card.Title>
+                <Card.Text>
+                  Çalışma saatlerinizi ve müsaitlik durumunuzu ayarlayın.
+                </Card.Text>
+                <Button 
+                  variant="info" 
+                  as={Link} 
+                  to="/vendor/availability"
+                >
+                  Saatleri Ayarla
+                </Button>
+              </Card.Body>
+            </Card>
+          </Col>
+          
+          <Col md={6} lg={3} className="mb-3">
+            <Card className="text-center h-100 border-0 shadow-sm">
+              <Card.Body>
+                <div className="mb-3">
+                  <i className="bi bi-person-circle text-secondary" style={{ fontSize: '2rem' }}></i>
+                </div>
+                <Card.Title>Profil</Card.Title>
+                <Card.Text>
+                  Restoran bilgilerinizi düzenleyin ve güncelleyin.
+                </Card.Text>
+                <Button 
+                  variant="secondary" 
+                  as={Link} 
+                  to="/vendor/profile"
+                >
+                  Profili Düzenle
+                </Button>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+        
+        <Row>
+          <Col>
+            <Card className="border-0 shadow-sm">
+              <Card.Header className="bg-primary text-white">
+                <h4 className="mb-0">Bekleyen Siparişler</h4>
+              </Card.Header>
+              <Card.Body>
+                {error && <Alert variant="danger">{error}</Alert>}
+                
+                {pendingOrders.length === 0 ? (
+                  <Alert variant="info">
+                    Şu anda bekleyen sipariş bulunmamaktadır.
+                  </Alert>
+                ) : (
+                  <div className="pending-orders">
+                    {pendingOrders.map((order) => (
+                      <div key={order._id} className="p-3 mb-3 border rounded bg-light">
+                        <Row className="align-items-center">
+                          <Col md={3}>
+                            <p className="mb-1">
+                              <strong>Sipariş No:</strong> #{order._id.substring(0, 8)}
+                            </p>
+                            <p className="mb-0 text-muted small">
+                              {new Date(order.createdAt).toLocaleString('tr-TR')}
+                            </p>
+                          </Col>
+                          <Col md={3}>
+                            <p className="mb-1">
+                              <strong>Müşteri:</strong> {order.userName}
+                            </p>
+                            <p className="mb-0 text-muted small">
+                              {order.items.length} ürün
+                            </p>
+                          </Col>
+                          <Col md={3}>
+                            <p className="mb-1">
+                              <span className={`badge ${order.status === 'pending' ? 'bg-warning' : 'bg-info'}`}>
+                                {order.status === 'pending' ? 'Beklemede' : 'Hazırlanıyor'}
+                              </span>
+                            </p>
+                            <p className="mb-0 text-muted small">
+                              <strong>Toplam:</strong> ₺{order.totalAmount.toFixed(2)}
+                            </p>
+                          </Col>
+                          <Col md={3} className="text-md-end">
+                            <Button 
+                              variant="primary" 
+                              size="sm" 
+                              as={Link} 
+                              to={`/vendor/orders/${order._id}`}
+                            >
+                              Detaylar
+                            </Button>
+                          </Col>
+                        </Row>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card.Body>
+              <Card.Footer className="bg-white">
+                <Button 
+                  variant="outline-primary" 
+                  as={Link} 
+                  to="/vendor/orders"
+                >
+                  Tüm Siparişleri Görüntüle
+                </Button>
+              </Card.Footer>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
+    );
+  };
+  
+  return (
+    <div className="home-page">
+      {userInfo && userInfo.role === 'vendor' ? renderVendorHomePage() : renderUserHomePage()}
+    </div>
   );
 };
 

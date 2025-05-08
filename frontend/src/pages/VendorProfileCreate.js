@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Button, Container, Row, Col, Card, Alert } from 'react-bootstrap';
+import { Form, Button, Container, Row, Col, Card, Alert, Image } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -23,6 +23,11 @@ const VendorProfileCreate = () => {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
+  const [logoFile, setLogoFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   const navigate = useNavigate();
   
@@ -55,21 +60,24 @@ const VendorProfileCreate = () => {
     const userInfo = JSON.parse(storedUserInfo);
     setUserInfo(userInfo);
     
-    // Kullanıcı satıcı değilse ana sayfaya yönlendir
-    if (userInfo.role !== 'vendor') {
-      navigate('/');
-      return;
-    }
-    
     // Satıcı profilinin olup olmadığını kontrol et
     const checkVendorProfile = async () => {
       try {
         const token = localStorage.getItem('token');
+        
+        if (!token) {
+          setError('Oturum bilgileriniz bulunamadı. Lütfen tekrar giriş yapın.');
+          setTimeout(() => navigate('/login'), 2000);
+          return;
+        }
+        
         const config = {
           headers: {
             Authorization: `Bearer ${token}`
           }
         };
+        
+        console.log('Token kontrolü:', token);
         
         const { data } = await axios.get('http://localhost:5000/api/vendors/profile', config);
         
@@ -81,6 +89,14 @@ const VendorProfileCreate = () => {
         // Profil bulunamadı, bu sayfada kalabilir
         if (error.response && error.response.status !== 404) {
           setError('Bir hata oluştu: ' + error.response.data.message);
+        }
+        
+        // 401 hatası - yetkilendirme sorunu
+        if (error.response && error.response.status === 401) {
+          console.error('Yetkilendirme hatası:', error);
+          setError('Oturum süresi dolmuş veya geçersiz. Lütfen tekrar giriş yapın.');
+          localStorage.removeItem('token');
+          setTimeout(() => navigate('/login'), 2000);
         }
       }
     };
@@ -123,6 +139,142 @@ const VendorProfileCreate = () => {
       });
     }
   };
+  
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Dosya boyutu kontrolü (1MB = 1048576 bytes)
+      const fileSize = file.size;
+      const maxSize = 1048576; // 1MB
+      
+      if (fileSize > maxSize) {
+        setError(`Logo dosyası çok büyük! Maksimum 1MB olmalıdır. Şu anki boyut: ${(fileSize / 1048576).toFixed(2)}MB`);
+        e.target.value = ''; // Input'u temizle
+        return;
+      }
+      
+      // Dosya tipi kontrolü
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        setError(`Geçersiz dosya formatı! Kabul edilen formatlar: JPEG, PNG, JPG, GIF`);
+        e.target.value = ''; // Input'u temizle
+        return;
+      }
+      
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+      
+      // Hata mesajını temizle
+      if (error) setError('');
+    }
+  };
+  
+  const handleCoverChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Dosya boyutu kontrolü (2MB = 2097152 bytes)
+      const fileSize = file.size;
+      const maxSize = 2097152; // 2MB
+      
+      if (fileSize > maxSize) {
+        setError(`Kapak resmi dosyası çok büyük! Maksimum 2MB olmalıdır. Şu anki boyut: ${(fileSize / 1048576).toFixed(2)}MB`);
+        e.target.value = ''; // Input'u temizle
+        return;
+      }
+      
+      // Dosya tipi kontrolü
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        setError(`Geçersiz dosya formatı! Kabul edilen formatlar: JPEG, PNG, JPG, GIF`);
+        e.target.value = ''; // Input'u temizle
+        return;
+      }
+      
+      setCoverFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCoverPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+      
+      // Hata mesajını temizle
+      if (error) setError('');
+    }
+  };
+  
+  // Resim yükleme fonksiyonu
+  const uploadImage = async (file, type) => {
+    try {
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('type', type); // 'logo' veya 'cover'
+    
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('Kimlik doğrulama jetonu bulunamadı');
+      }
+      
+    const config = {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`
+      }
+    };
+    
+      console.log(`${type} resmi yükleniyor...`);
+      console.log('Kullanılan token:', token);
+      
+      // Doğru endpoint ve hata ayıklama mesajları
+      console.log('Resim yükleme isteği gönderiliyor:', {
+        url: 'http://localhost:5000/api/vendors/upload',
+        type,
+        fileSize: Math.round(file.size / 1024) + 'KB',
+        fileName: file.name
+      });
+      
+      const response = await axios.post(
+      'http://localhost:5000/api/vendors/upload',
+      formData,
+      config
+    );
+    
+      console.log('Sunucu yanıtı:', response);
+      
+      if (response.data && response.data.success) {
+        console.log(`${type} resmi başarıyla yüklendi:`, response.data);
+        return response.data.imageUrl;
+      } else {
+        throw new Error(response.data?.message || `${type} resmi yüklenemedi`);
+      }
+    } catch (error) {
+      console.error(`${type} resmi yükleme hatası:`, error);
+      
+      if (error.response) {
+        console.error('Hata detayları:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        });
+        
+        // 401 hatasını özel olarak işle
+        if (error.response.status === 401) {
+          throw new Error('Yetkilendirme hatası: Oturum süresi dolmuş veya geçersiz');
+        }
+        
+        // 400 hatasını özel olarak işle
+        if (error.response.status === 400) {
+          throw new Error(`400 Bad Request: ${error.response.data?.message || 'Dosya formatı veya boyutu uygun olmayabilir'}`);
+        }
+      }
+      
+      throw new Error(`${type} resmi yüklenirken hata: ${error.message}`);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -147,34 +299,96 @@ const VendorProfileCreate = () => {
       setLoading(true);
       setError('');
       
-      const token = localStorage.getItem('token');
+      // Önce resimleri yükle
+      let vendorData = { ...formData };
+      
+      if (logoFile || coverFile) {
+        setUploadingImages(true);
+        try {
+          // Logo yükleme
+          if (logoFile) {
+            try {
+            const logoUrl = await uploadImage(logoFile, 'logo');
+            vendorData.logo = logoUrl;
+            } catch (logoError) {
+              console.error('Logo yükleme hatası:', logoError);
+              setError('Logo resmi yüklenirken bir hata oluştu: ' + logoError.message);
+              setLoading(false);
+              setUploadingImages(false);
+              return;
+            }
+          }
+          
+          // Kapak resmi yükleme
+          if (coverFile) {
+            try {
+            const coverUrl = await uploadImage(coverFile, 'cover');
+            vendorData.coverImage = coverUrl;
+            } catch (coverError) {
+              console.error('Kapak resmi yükleme hatası:', coverError);
+              setError('Kapak resmi yüklenirken bir hata oluştu: ' + coverError.message);
+              setLoading(false);
+              setUploadingImages(false);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('Genel resim yükleme hatası:', error);
+          setError('Resimler yüklenirken bir hata oluştu: ' + error.message);
+          setLoading(false);
+          setUploadingImages(false);
+          return;
+        }
+        setUploadingImages(false);
+      }
+      
+      const token = localStorage.getItem('token'); // 'userToken' yerine 'token' kullanılmalı
+      
+      if (!token) {
+        setError('Kimlik doğrulama jetonu bulunamadı. Lütfen tekrar giriş yapın.');
+        setLoading(false);
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+        return;
+      }
+      
       const config = {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          'Authorization': `Bearer ${token}`
         }
       };
       
-      const { data } = await axios.post(
+      console.log('Satıcı profili oluşturuluyor:', vendorData);
+      
+      const response = await axios.post(
         'http://localhost:5000/api/vendors/profile',
-        formData,
+        vendorData,
         config
       );
       
-      if (data.success) {
+      if (response.data && response.data.success) {
         setSuccess(true);
+        
+        // localStorage'daki kullanıcı bilgilerini güncelle
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (userInfo) {
+          userInfo.vendorProfile = response.data.data;
+          localStorage.setItem('userInfo', JSON.stringify(userInfo));
+          window.dispatchEvent(new Event('storage'));
+        }
         
         // 2 saniye sonra satıcı paneline yönlendir
         setTimeout(() => {
           navigate('/vendor/dashboard');
         }, 2000);
+      } else {
+        setError(response.data?.message || 'Satıcı profili oluşturulurken bir hata oluştu');
       }
     } catch (error) {
-      setError(
-        error.response && error.response.data.message
-          ? error.response.data.message
-          : 'Profil oluşturulurken bir hata oluştu'
-      );
+      console.error('Satıcı profili oluşturma hatası:', error);
+      setError(error.response?.data?.message || 'Bilinmeyen bir hata oluştu');
     } finally {
       setLoading(false);
     }
@@ -192,6 +406,60 @@ const VendorProfileCreate = () => {
               {success && <Alert variant="success">Profil başarıyla oluşturuldu! Yönlendiriliyorsunuz...</Alert>}
               
               <Form onSubmit={handleSubmit}>
+                <h5 className="mt-4 mb-3">Görsel Bilgileri</h5>
+                
+                <Row className="mb-4">
+                  <Col md={6} className="mb-3 mb-md-0">
+                    <Form.Group controlId="logoFile">
+                      <Form.Label>İşletme Logosu</Form.Label>
+                      <Form.Control
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoChange}
+                      />
+                      <Form.Text className="text-muted">
+                        Önerilen boyut: 300x300 piksel. Maks 1MB.
+                      </Form.Text>
+                      {logoPreview && (
+                        <div className="mt-2 text-center">
+                          <Image 
+                            src={logoPreview} 
+                            alt="Logo Önizleme" 
+                            style={{ maxWidth: '200px', maxHeight: '200px' }} 
+                            thumbnail 
+                          />
+                        </div>
+                      )}
+                    </Form.Group>
+                  </Col>
+                  
+                  <Col md={6}>
+                    <Form.Group controlId="coverFile">
+                      <Form.Label>Kapak Resmi</Form.Label>
+                      <Form.Control
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCoverChange}
+                      />
+                      <Form.Text className="text-muted">
+                        Önerilen boyut: 1200x300 piksel. Maks 2MB.
+                      </Form.Text>
+                      {coverPreview && (
+                        <div className="mt-2 text-center">
+                          <Image 
+                            src={coverPreview} 
+                            alt="Kapak Resmi Önizleme" 
+                            style={{ maxWidth: '100%', maxHeight: '150px' }} 
+                            thumbnail 
+                          />
+                        </div>
+                      )}
+                    </Form.Group>
+                  </Col>
+                </Row>
+                
+                <h5 className="mt-4 mb-3">İşletme Bilgileri</h5>
+                
                 <Form.Group className="mb-3" controlId="businessName">
                   <Form.Label>İşletme Adı*</Form.Label>
                   <Form.Control
@@ -342,15 +610,15 @@ const VendorProfileCreate = () => {
                   <Button 
                     variant="primary" 
                     type="submit"
-                    disabled={loading || success}
+                    disabled={loading || success || uploadingImages}
                   >
-                    {loading ? 'Kaydediliyor...' : 'Profil Oluştur'}
+                    {loading ? 'Kaydediliyor...' : uploadingImages ? 'Resimler Yükleniyor...' : 'Profil Oluştur'}
                   </Button>
                   
                   <Button 
                     variant="outline-secondary" 
                     onClick={() => navigate('/vendor/dashboard')}
-                    disabled={loading || success}
+                    disabled={loading || success || uploadingImages}
                   >
                     İptal
                   </Button>
