@@ -87,8 +87,8 @@ const sendTokenResponse = (user, statusCode, res) => {
     .status(statusCode)
     .json({
       success: true,
+      data: {
       token,
-      user: {
         id: user._id,
         name: user.name,
         email: user.email,

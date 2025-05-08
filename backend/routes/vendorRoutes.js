@@ -12,13 +12,19 @@ const {
   getVendorMenu,
   getMyMenu,
   updateAvailability,
-  getAvailability
+  getAvailability,
+  getVendorAvailability,
+  uploadVendorImage
 } = require('../controllers/vendorController');
 
 // Satıcı profili rotaları
 router.route('/profile')
-  .post(protect, authorize('vendor'), createUpdateVendorProfile)
-  .get(protect, authorize('vendor'), getMyVendorProfile);
+  .post(protect, createUpdateVendorProfile)
+  .get(protect, getMyVendorProfile);
+
+// Satıcı resim yükleme rotası
+router.route('/upload')
+  .post(protect, uploadVendorImage);
 
 // Satıcı müsait günler rotaları
 router.route('/profile/availability')
@@ -45,5 +51,8 @@ router.route('/:id')
 
 router.route('/:id/menu')
   .get(getVendorMenu);
+
+router.route('/:id/availability')
+  .get(getVendorAvailability);
 
 module.exports = router;

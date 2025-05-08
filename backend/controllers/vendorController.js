@@ -6,7 +6,7 @@ const ErrorResponse = require('../utils/errorResponse');
 
 // @desc    Satıcı profili oluştur veya güncelle
 // @route   POST /api/vendors/profile
-// @access  Private (Sadece satıcılar)
+// @access  Private
 exports.createUpdateVendorProfile = asyncHandler(async (req, res, next) => {
   const {
     businessName,
@@ -59,7 +59,7 @@ exports.createUpdateVendorProfile = asyncHandler(async (req, res, next) => {
 
 // @desc    Kendi satıcı profilini görüntüle
 // @route   GET /api/vendors/profile
-// @access  Private (Sadece satıcılar)
+// @access  Private
 exports.getMyVendorProfile = asyncHandler(async (req, res, next) => {
   const vendorProfile = await VendorProfile.findOne({ user: req.user.id });
 
@@ -80,7 +80,7 @@ exports.getMyVendorProfile = asyncHandler(async (req, res, next) => {
 // @access  Public
 exports.getVendors = asyncHandler(async (req, res, next) => {
   // Filtreleme için
-  const { category, rating, name } = req.query;
+  const { category, rating, name, menuItem } = req.query;
   const filter = {};
 
   if (category) {
@@ -95,18 +95,58 @@ exports.getVendors = asyncHandler(async (req, res, next) => {
     filter.businessName = { $regex: name, $options: 'i' };
   }
 
-  // Sadece onaylanmış satıcıları göster
-  filter.isVerified = true;
-
-  const vendors = await VendorProfile.find(filter).populate({
+  // Önce menü öğeleri olan satıcıları bul
+  let vendorsWithMenu = await MenuItem.distinct('vendor');
+  let matchedMenuItems = [];
+  
+  // Menü içeriğine göre filtreleme 
+  if (menuItem) {
+    // Menü içeriğine göre satıcıları bul
+    const menuItems = await MenuItem.find({
+      $or: [
+        { name: { $regex: menuItem, $options: 'i' } },
+        { description: { $regex: menuItem, $options: 'i' } },
+        { category: { $regex: menuItem, $options: 'i' } },
+        { ingredients: { $in: [new RegExp(menuItem, 'i')] } }
+      ]
+    });
+    
+    // Eşleşen menü öğelerini sakla
+    matchedMenuItems = menuItems;
+    vendorsWithMenu = menuItems.map(item => item.vendor.toString());
+  }
+  
+  // Menü öğesi olan tüm satıcıları getir
+  const vendors = await VendorProfile.find({
+    ...filter,
+    $or: [
+      { _id: { $in: vendorsWithMenu } },  // Menü eklemiş satıcılar
+      { isVerified: true }                // Doğrulanmış satıcılar
+    ]
+  }).populate({
     path: 'user',
     select: 'name email'
+  });
+
+  // Satıcı verilerine eşleşen menü öğelerini ekle
+  const vendorsWithMenuItems = vendors.map(vendor => {
+    // Vendor objesini düz bir objeye dönüştür
+    const vendorObj = vendor.toObject();
+    
+    // Eğer menü araması yapıldıysa, eşleşen menü öğelerini ekle
+    if (menuItem && matchedMenuItems.length > 0) {
+      vendorObj.matchedMenuItems = matchedMenuItems.filter(
+        item => item.vendor.toString() === vendor._id.toString()
+      );
+    }
+    
+    return vendorObj;
   });
 
   res.status(200).json({
     success: true,
     count: vendors.length,
-    data: vendors
+    data: vendorsWithMenuItems
   });
 });
 
@@ -305,65 +345,135 @@ exports.getMyMenu = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Satıcının müsait günlerini güncelle
+// @desc    Satıcının müsaitlik bilgilerini günceller
 // @route   PUT /api/vendors/profile/availability
 // @access  Private (Sadece satıcılar)
 exports.updateAvailability = asyncHandler(async (req, res, next) => {
+  const { availability } = req.body;
+  
+  // Müsaitlik formatının doğru olup olmadığını kontrol et
+  if (!availability || !Array.isArray(availability)) {
+    return next(
+      new ErrorResponse('Müsaitlik bilgileri geçerli bir formatta değil', 400)
+    );
+  }
+  
+  // Satıcı profilini kontrol et
   const vendorProfile = await VendorProfile.findOne({ user: req.user.id });
-
+  
   if (!vendorProfile) {
     return next(
-      new ErrorResponse('Bu kullanıcı için satıcı profili bulunamadı', 404)
+      new ErrorResponse('Satıcı profili bulunamadı', 404)
     );
   }
-
-  const { availability } = req.body;
-
-  // Gönderilen availability verisini doğrula
-  if (!Array.isArray(availability)) {
-    return next(
-      new ErrorResponse('Müsait günler listesi geçerli bir dizi olmalıdır', 400)
-    );
-  }
-
-  // Availability dizisindeki her günün gerekli alanları içerdiğinden emin ol
-  for (let i = 0; i < availability.length; i++) {
-    const day = availability[i];
-    
-    if (!day.day || typeof day.isOpen !== 'boolean' || !day.openTime || !day.closeTime) {
-      return next(
-        new ErrorResponse(`Gün #${i+1} için gerekli tüm alanları doldurun (day, isOpen, openTime, closeTime)`, 400)
-      );
-    }
-  }
-
-  // Sadece müsait günleri güncelle, diğer alanları değiştirme
-  await VendorProfile.findOneAndUpdate(
-    { user: req.user.id },
-    { availability: availability },
-    { new: true, runValidators: false }
-  );
-
+  
+  // Müsaitlik bilgilerini güncelle
+  vendorProfile.availability = availability;
+  await vendorProfile.save();
+  
   res.status(200).json({
     success: true,
-    data: availability
+    data: vendorProfile.availability
   });
 });
 
-// @desc    Satıcının müsait günlerini görüntüle
+// @desc    Satıcının müsaitlik bilgilerini getirir
 // @route   GET /api/vendors/profile/availability
 // @access  Private (Sadece satıcılar)
 exports.getAvailability = asyncHandler(async (req, res, next) => {
+  // Satıcı profilini kontrol et
   const vendorProfile = await VendorProfile.findOne({ user: req.user.id });
-
+  
   if (!vendorProfile) {
     return next(
-      new ErrorResponse('Bu kullanıcı için satıcı profili bulunamadı', 404)
+      new ErrorResponse('Satıcı profili bulunamadı', 404)
     );
   }
-
+  
   res.status(200).json({
     success: true,
-    data: vendorProfile.availability || []
+    data: vendorProfile.availability
+  });
+});
+
+// @desc    Kullanıcılar için satıcının müsaitlik bilgilerini getirir
+// @route   GET /api/vendors/:id/availability
+// @access  Public
+exports.getVendorAvailability = asyncHandler(async (req, res, next) => {
+  // Satıcı profilini kontrol et
+  const vendorProfile = await VendorProfile.findById(req.params.id);
+  
+  if (!vendorProfile) {
+    return next(
+      new ErrorResponse('Satıcı profili bulunamadı', 404)
+    );
+  }
+  
+  res.status(200).json({
+    success: true,
+    data: vendorProfile.availability
+  });
+});
+
+// @desc    Resim yükleme (logo veya kapak fotoğrafı)
+// @route   POST /api/vendors/upload
+// @access  Private
+exports.uploadVendorImage = asyncHandler(async (req, res, next) => {
+  if (!req.files || Object.keys(req.files).length === 0) {
+    return next(new ErrorResponse('Lütfen bir resim yükleyin', 400));
+  }
+  
+  // Satıcı profili kontrolünü kaldırıyoruz, kullanıcı kimliği ile işlem yapacağız
+  // Eğer profil yoksa, oluşturulacak profil için resim yüklenebilir
+  
+  const file = req.files.image;
+  const type = req.body.type; // "logo" veya "cover"
+  
+  // Dosya tipi kontrolü
+  if (!file.mimetype.startsWith('image')) {
+    return next(new ErrorResponse('Lütfen bir resim dosyası yükleyin', 400));
+  }
+  
+  // Dosya boyutu kontrolü
+  const maxSize = type === 'logo' ? 1 * 1024 * 1024 : 2 * 1024 * 1024; // logo için 1MB, kapak için 2MB
+  if (file.size > maxSize) {
+    return next(
+      new ErrorResponse(
+        `Lütfen ${maxSize / (1024 * 1024)}MB'dan küçük bir resim yükleyin`,
+        400
+      )
+    );
+  }
+  
+  // Dosya adını özelleştir
+  const fileExtension = file.name.split('.').pop();
+  file.name = `${type}_${req.user.id}_${Date.now()}.${fileExtension}`;
+  
+  // Dosyayı taşı
+  file.mv(`${process.env.FILE_UPLOAD_PATH}/${file.name}`, async (err) => {
+    if (err) {
+      console.error(err);
+      return next(new ErrorResponse('Dosya yükleme hatası', 500));
+    }
+    
+    // Satıcı profili varsa profili güncelle
+    const imageUrl = `${process.env.FILE_UPLOAD_BASE_URL}/${file.name}`;
+    
+    const vendorProfile = await VendorProfile.findOne({ user: req.user.id });
+    
+    if (vendorProfile) {
+      if (type === 'logo') {
+        vendorProfile.logo = imageUrl;
+      } else if (type === 'cover') {
+        vendorProfile.coverImage = imageUrl;
+      }
+      
+      await vendorProfile.save();
+    }
+    
+    res.status(200).json({
+      success: true,
+      imageUrl
+    });
   });
 }); 

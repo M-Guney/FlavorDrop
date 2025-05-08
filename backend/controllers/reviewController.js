@@ -1,8 +1,8 @@
-const Review = require('../models/Review');
-const User = require('../models/User');
-const Vendor = require('../models/Vendor');
-const MenuItem = require('../models/MenuItem');
-const Order = require('../models/Order');
+const Review = require('../models/review');
+const User = require('../models/user');
+const Vendor = require('../models/vendorProfile');
+const MenuItem = require('../models/menuItem');
+const Order = require('../models/order');
 const asyncHandler = require('../middleware/asyncHandler');
 const ErrorResponse = require('../utils/errorResponse');
 

@@ -5,13 +5,11 @@ const jwt = require('jsonwebtoken');
 const UserSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: [true, 'Lütfen bir isim giriniz'],
-    trim: true,
-    maxlength: [50, 'İsim 50 karakterden uzun olamaz']
+    required: [true, 'İsim alanı gereklidir']
   },
   email: {
     type: String,
-    required: [true, 'Lütfen bir email giriniz'],
+    required: [true, 'Email alanı gereklidir'],
     unique: true,
     match: [
       /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
@@ -20,18 +18,41 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Lütfen bir şifre giriniz'],
-    minlength: [6, 'Şifre en az 6 karakter olmalıdır'],
+    required: [true, 'Şifre alanı gereklidir'],
+    minlength: 6,
     select: false
+  },
+  phone: {
+    type: String,
+    match: [
+      /^(\+90|0)?[0-9]{10}$/,
+      'Lütfen geçerli bir telefon numarası giriniz'
+    ]
+  },
+  address: {
+    street: String,
+    city: String,
+    postalCode: String
   },
   role: {
     type: String,
     enum: ['user', 'vendor', 'admin'],
     default: 'user'
   },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  lastLogin: {
+    type: Date
+  },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
     type: Date,
     default: Date.now
   }
@@ -39,24 +60,24 @@ const UserSchema = new mongoose.Schema({
 
 // Şifreyi hashleme
 UserSchema.pre('save', async function(next) {
+  // Eğer şifre değiştirilmemişse hashlenmesin
   if (!this.isModified('password')) {
     next();
   }
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
 // JWT token oluşturma metodu
 UserSchema.methods.getSignedJwtToken = function() {
-  return jwt.sign(
-    { id: this._id, role: this.role }, 
-    process.env.JWT_SECRET || 'supersecret',
-    { expiresIn: '30d' }
-  );
+  return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE
+  });
 };
 
-// Şifre doğrulama metodu
+// Şifreleri karşılaştırma metodu
 UserSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };

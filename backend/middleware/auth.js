@@ -43,6 +43,45 @@ exports.protect = async (req, res, next) => {
   }
 };
 
+// Bazı işlemlerde token kontrolü yap, ama hata durumunda devam et
+exports.optionalProtect = async (req, res, next) => {
+  try {
+    // Token'ı al
+    let token;
+    
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) {
+      console.log('Token bulunamadı, ancak işleme devam edilecek');
+      return next();
+    }
+
+    try {
+      // Token'ı doğrula
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
+      
+      // Kullanıcıyı bul
+      const user = await User.findById(decoded.id).select('-password');
+      
+      if (user) {
+        // Kullanıcıyı request'e ekle
+        req.user = user;
+      }
+    } catch (tokenError) {
+      console.error('Token doğrulama hatası, ancak işleme devam edilecek:', tokenError);
+    }
+    
+    // Her durumda devam et
+    next();
+  } catch (error) {
+    console.error('Auth hatası:', error);
+    // Hata durumunda bile devam et
+    next();
+  }
+};
+
 // Rol bazlı yetkilendirme
 exports.authorize = (...roles) => {
   return (req, res, next) => {

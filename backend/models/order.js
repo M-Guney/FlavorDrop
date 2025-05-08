@@ -6,9 +6,17 @@ const OrderSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  userName: {
+    type: String,
+    required: true
+  },
   vendor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'VendorProfile',
+    required: true
+  },
+  vendorName: {
+    type: String,
     required: true
   },
   items: [
@@ -18,190 +26,168 @@ const OrderSchema = new mongoose.Schema({
         ref: 'MenuItem',
         required: true
       },
-      name: String,
-      quantity: {
-        type: Number,
-        required: true,
-        min: [1, 'Miktar en az 1 olmalıdır']
+      name: {
+        type: String,
+        required: true
       },
       price: {
         type: Number,
         required: true
       },
-      specialInstructions: String
+      quantity: {
+        type: Number,
+        required: true,
+        min: 1
+      },
+      options: [
+        {
+          name: String,
+          choice: String,
+          priceAdjustment: Number
+        }
+      ],
+      specialInstructions: String,
+      totalItemPrice: {
+        type: Number,
+        required: true
+      }
     }
   ],
   totalAmount: {
     type: Number,
-    required: true,
-    min: [0, 'Toplam tutar negatif olamaz']
-  },
-  deliveryFee: {
-    type: Number,
-    default: 0
-  },
-  taxAmount: {
-    type: Number,
-    default: 0
-  },
-  discountAmount: {
-    type: Number,
-    default: 0
-  },
-  finalAmount: {
-    type: Number,
     required: true
   },
-  paymentMethod: {
-    type: String,
-    required: true,
-    enum: ['nakit', 'kredi_karti', 'banka_havalesi', 'kapida_odeme', 'cuzdan']
-  },
-  paymentStatus: {
-    type: String,
-    required: true,
-    enum: ['beklemede', 'tamamlandi', 'iade_edildi', 'iptal_edildi'],
-    default: 'beklemede'
-  },
-  orderStatus: {
-    type: String,
-    required: true,
-    enum: [
-      'siparis_alindi', 
-      'hazirlaniyor', 
-      'teslimat_icin_hazir', 
-      'teslimatta', 
-      'teslim_edildi', 
-      'iptal_edildi'
-    ],
-    default: 'siparis_alindi'
-  },
   deliveryAddress: {
-    street: {
-      type: String,
-      required: true
-    },
-    city: {
-      type: String,
-      required: true
-    },
-    state: String,
-    postalCode: {
-      type: String,
-      required: true
-    },
-    country: {
-      type: String,
-      default: 'Türkiye'
-    },
-    coordinates: {
-      latitude: Number,
-      longitude: Number
-    },
-    deliveryInstructions: String
+    type: String,
+    required: true
   },
   contactPhone: {
     type: String,
     required: true
   },
+  orderType: {
+    type: String,
+    enum: ['one-time', 'recurring'],
+    default: 'one-time'
+  },
+  recurring: {
+    frequency: {
+      type: String,
+      enum: ['weekly', 'biweekly', 'monthly']
+    },
+    dayOfWeek: {
+      type: String,
+      enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    },
+    timeSlot: String,
+    nextDeliveryDate: Date,
+    endDate: Date,
+    active: {
+      type: Boolean,
+      default: true
+    }
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered', 'completed', 'cancelled'],
+    default: 'pending'
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'credit_card', 'online'],
+    default: 'cash'
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'completed', 'failed', 'refunded'],
+    default: 'pending'
+  },
+  vendorNotification: {
+    message: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  customerNotification: {
+    message: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
   estimatedDeliveryTime: {
     type: Date
   },
-  actualDeliveryTime: {
+  deliveredAt: {
     type: Date
   },
-  deliveryPerson: {
-    name: String,
-    phone: String,
-    vehicleInfo: String
+  completedAt: {
+    type: Date
   },
-  orderNotes: String,
-  isSubscriptionOrder: {
-    type: Boolean,
-    default: false
+  cancelledAt: {
+    type: Date
   },
-  subscriptionDetails: {
-    frequency: String, // 'günlük', 'haftalık', 'aylık'
-    duration: Number, // Kaç gün, hafta veya ay
-    nextDeliveryDate: Date
-  },
-  ratings: {
-    food: {
+  rating: {
+    stars: {
       type: Number,
       min: 1,
       max: 5
     },
-    delivery: {
-      type: Number,
-      min: 1,
-      max: 5
-    },
-    overall: {
-      type: Number,
-      min: 1,
-      max: 5
-    },
-    comments: String
-  },
-  refundRequest: {
-    status: {
-      type: String,
-      enum: ['yok', 'talep_edildi', 'işleniyor', 'onaylandi', 'reddedildi'],
-      default: 'yok'
-    },
-    reason: String,
-    requestDate: Date,
-    resolvedDate: Date,
-    refundAmount: Number
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+    comment: String,
+    createdAt: Date
   }
+}, {
+  timestamps: true
 });
 
-// İndirim ve vergiyi dahil ederek son tutarı hesapla
+// Sipariş tamamlandığında completedAt alanını güncelle
 OrderSchema.pre('save', function(next) {
-  this.finalAmount = 
-    this.totalAmount + 
-    this.deliveryFee + 
-    this.taxAmount - 
-    this.discountAmount;
-  
-  this.updatedAt = Date.now();
+  if (this.isModified('status')) {
+    if (this.status === 'completed' && !this.completedAt) {
+      this.completedAt = new Date();
+    } else if (this.status === 'delivered' && !this.deliveredAt) {
+      this.deliveredAt = new Date();
+    } else if (this.status === 'cancelled' && !this.cancelledAt) {
+      this.cancelledAt = new Date();
+    }
+  }
   next();
 });
 
-// Sipariş durumu güncelleme için
-OrderSchema.methods.updateOrderStatus = function(newStatus, updateParams = {}) {
-  this.orderStatus = newStatus;
-  
-  if (newStatus === 'teslimatta') {
-    this.estimatedDeliveryTime = updateParams.estimatedTime || null;
-    if (updateParams.deliveryPerson) {
-      this.deliveryPerson = updateParams.deliveryPerson;
-    }
-  }
-  
-  if (newStatus === 'teslim_edildi') {
-    this.actualDeliveryTime = Date.now();
-  }
-  
-  return this.save();
+// Müşteri ve satıcı için sipariş özeti
+OrderSchema.methods.getSummary = function() {
+  return {
+    id: this._id,
+    items: this.items.map(item => ({
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price
+    })),
+    totalAmount: this.totalAmount,
+    status: this.status,
+    createdAt: this.createdAt
+  };
 };
 
-// Teslimat tahmini sürelerini hesapla
-OrderSchema.methods.calculateEstimatedDeliveryTime = function(baseTime = 30) {
-  const estimatedMinutes = baseTime + (this.items.length * 5);
-  const deliveryTime = new Date();
-  deliveryTime.setMinutes(deliveryTime.getMinutes() + estimatedMinutes);
+// Tekrarlanan sipariş kontrolü
+OrderSchema.statics.checkForRecurringOrders = async function() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   
-  this.estimatedDeliveryTime = deliveryTime;
-  return this.estimatedDeliveryTime;
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  
+  // Bir sonraki teslimat günü bugün veya dün olan aktif tekrarlanan siparişleri bul
+  // (Dün olanlar işlenmemiş olabilir)
+  const recurringOrders = await this.find({
+    'orderType': 'recurring',
+    'recurring.active': true,
+    'recurring.nextDeliveryDate': { $lte: tomorrow },
+    'status': { $nin: ['cancelled', 'completed'] }
+  }).populate('user vendor');
+  
+  return recurringOrders;
 };
 
 module.exports = mongoose.model('Order', OrderSchema); 

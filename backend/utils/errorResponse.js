@@ -1,4 +1,4 @@
-// Özel hata sınıfı
+// Özel hata cevap sınıfı
 class ErrorResponse extends Error {
   constructor(message, statusCode) {
     super(message);
