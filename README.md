@@ -1,6 +1,7 @@
 # Proje Kurulum Rehberi
 
 Bu rehber, backend ve frontend projelerinin kurulumu ve çalıştırılması için adımları içermektedir.
+MONGO DB indir: https://www.mongodb.com/try/download/community
 
 ## Kurulum Adımları
 
