@@ -1,3 +1,14 @@
+# Proje İçeriği
+![337504f6-9f5a-4a48-826b-501b7dc0b634](https://github.com/user-attachments/assets/1053208d-4c2f-448c-87d5-5884313a716e)
+![b5f41e4d-73dc-4d34-944c-975c760bd3c8](https://github.com/user-attachments/assets/ae47f6be-e19e-495c-9cac-08ebf6388dc7)
+![393d3aeb-2bdc-4376-af82-86f4c11f4d3f](https://github.com/user-attachments/assets/1aae305c-bd26-4bd5-9058-718aec70e95c)
+![76f33a77-5b85-4c14-a448-44e354db521f](https://github.com/user-attachments/assets/79580b26-cee5-4bab-b29d-2e194864478e)
+![8568d533-dc1e-42c0-b464-bf2ba9e9ccbe](https://github.com/user-attachments/assets/8ab43a26-426d-4d27-8786-1375b8f839d0)
+![48cf1123-b25f-490f-9dbe-feb5cac9dcfd](https://github.com/user-attachments/assets/75109ede-32b8-4dff-9658-31f10b1153d1)
+
+To Do:
+1. Email and phone vertification will be added
+2. 
 # Proje Kurulum Rehberi
 
 Bu rehber, backend ve frontend projelerinin kurulumu ve çalıştırılması için adımları içermektedir.
